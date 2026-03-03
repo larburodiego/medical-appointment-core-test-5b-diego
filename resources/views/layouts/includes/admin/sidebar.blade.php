@@ -38,6 +38,13 @@
             'href' => route('admin.doctors.index'),
             'active' => request()->routeIs('admin.doctors.*'),
         ],
+        
+        [
+            'name' => 'Tickets de Soporte',
+            'icon' => 'fa-solid fa-headset',
+            'href' => route('admin.support-tickets.index'),
+            'active' => request()->routeIs('admin.support-tickets.*'),
+        ],
     ];
 @endphp
 

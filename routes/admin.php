@@ -2,12 +2,13 @@
 
 use App\Http\Controllers\Admin\DoctorController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\SupportTicketController;
 use Illuminate\Support\Facades\Route;
 
 //Linea adicional para ver si se arreglan mis rutas que no tienen .admin
 
-Route::get('/', function(){
-    return view('admin.dashboard') ;
+Route::get('/', function () {
+    return view('admin.dashboard');
 })->name('dashboard'); //Modificado para arreglar las rutas admin, notas personales diego
 
 //Gestion de roles
@@ -18,3 +19,6 @@ Route::resource('patients', \App\Http\Controllers\Admin\PatientController::class
 
 //Gestion de doctores
 Route::resource('doctors', DoctorController::class);
+
+// Gestion de tickets de soporte
+Route::resource('support-tickets', SupportTicketController::class)->except(['create', 'store', 'edit', 'update']);
