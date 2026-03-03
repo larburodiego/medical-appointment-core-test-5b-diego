@@ -1,0 +1,157 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\User; // si usas el modelo por defecto
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Spatie\Permission\Models\Role;
+
+class UserController extends Controller
+{
+    public function index()
+    {
+        $users = User::all(); // puedes paginar más adelante
+        return view('admin.users.index', compact('users'));
+    }
+    //Cosas pegadas de role controller aqui abajo
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        $roles = Role::all();
+        return view('admin.users.create', compact('roles'));
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|min:3|max:255',
+            'email' => 'required|string|email|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'id_number' => 'required|string|min:5|max:20|regex:/^[A-Za-z0-9\-]+$/|unique:users',
+            'phone' => 'required|digits_between:7,15',
+            'address' => 'required|string|min:3|max:255',
+            'role_id' => 'required|exists:roles,id'
+        ]);
+        $user =User::create($data);
+        $user->roles()->attach($data['role_id']);
+
+        // Buscamos el rol directamente para estar seguros del nombre
+        $roleName = \App\Models\Role::find($data['role_id'])->name;
+
+        session()->flash('swal', [
+            'icon' => 'success',
+            'title' => 'Usuario creado',
+            'text' => 'El usuario ha sido creado exitosamente'
+        ]);
+
+        //Si el usuario creado es un paciente, envia el modulo pacientes
+        // 4. Lógica de redirección y creación de perfiles específicos
+        if ($roleName == 'Paciente') {
+            $patient = $user->patient()->create([]);
+            return redirect()->route('admin.patients.edit', $patient->id);
+        }
+
+        if ($roleName == 'Doctor') {
+            // Creamos el registro en la tabla doctors
+            // speciality_id 1 por defecto (asegúrate que el ID 1 exista en especialidades)
+            $doctor = $user->doctor()->create([
+                'specialty_id' => null,
+                'medical_license_number' => null,
+                'biography' => null
+            ]);
+            return redirect()->route('admin.doctors.edit', $doctor->id);
+        }
+
+        // Si no es ninguno de los anteriores (ej. Admin), va al index de usuarios
+        return redirect()->route('admin.users.index');
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
+    {
+        //
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(User $user)
+    {
+        $roles = Role::all();
+        return view('admin.users.edit', compact('user','roles'));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|min:3|max:255',
+            'email' => 'required|string|email|unique:users,email,' . $user->id,
+            'id_number' => 'required|string|min:5|max:20|regex:/^[A-Za-z0-9\-]+$/|unique:users,id_number,' . $user->id,
+            'phone' => 'required|digits_between:7,15',
+            'address' => 'required|string|min:3|max:255',
+            'role_id' => 'required|exists:roles,id',
+            // Se recomienda validar el password aunque sea opcional
+            'password' => 'nullable|string|min:8|confirmed',
+        ]);
+
+        $user->update($data);
+
+        if ($request->filled('password')) {
+            $user->password = bcrypt($request->password);
+            $user->save();
+        }
+
+        $user->syncRoles($data['role_id']);
+
+        session()->flash('swal', [
+            'icon' => 'success',
+            'title' => 'Usuario actualizado',
+            'text' => 'El usuario ha sido actualizado exitosamente'
+        ]);
+
+        return redirect()->route('admin.users.edit', $user)->with('success', 'User updated success');
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(User $user)
+    {
+        //No permitir que el usuario logeado se borre a si mismo
+        if (Auth::id() == $user->id) {
+            session()->flash('swal', [
+                'icon' => 'error',
+                'title' => 'Error',
+                'text' => 'No puedes borrarte a ti mismo',
+            ]);
+            abort(403, 'No puedes borrar tu propio usuario');
+        }
+
+        //Eliminar roles asociados a un usuario( tambien se borran de la tabla de roles)
+        $user->roles()->detach();
+
+        //Eliminar el usuario
+        $user->delete();
+
+        session()->flash('swal', [
+            'icon' => 'success',
+            'title' => 'Usuario eliminado',
+            'text' => "El usuario ha sido eliminado exitosamente"
+        ]);
+
+        return redirect()->route('admin.users.index');
+
+    }
+}
